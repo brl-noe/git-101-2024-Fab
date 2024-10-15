@@ -150,7 +150,7 @@ white_wine |>
 ```{r}
 #| eval: false
 white_wine |> 
-  select(where(\(x) is.numeric(x) & (max(x) < 5)))
+  select(where(\(x) is.numeric(x) & (max(x) < 5)))  ## as the dat frame is a list we apply to each of the column, where = what are the column that give me TRUE
 ```
 
 ### Selecting rows
@@ -168,7 +168,7 @@ Condition based selection uses `filter()`.
 
 ```{r}
 white_wine |> 
-  filter(alcohol > 14) |>
+  filter(alcohol > 14) |>   ## extend the small vector to the biggest vector
   select(alcohol, quality, `citric acid`, `residual sugar`) |>
   knitr::kable()
 ```
@@ -204,5 +204,57 @@ white_wine |>
   geom_point(alpha=0.75) +
   scale_color_viridis_c() +
   facet_wrap(vars(`alcohol category`))
+```
+
+## Aggregation functions
+A.k.a summary functions: turn a possibly long vector into a single value (still a vector!).
+
+.standard statistics: `max()`, `min()`, `median()`, etc.
+. logical operations: àny()`and àll()`
+. counts and ranks: `n()`
+
+### Simple summary use
+Based on `summarise()` function or inside a `mutate` call
+
+```{r}
+white_wine |>
+  summarise(
+    med_alcohol=median(alcohol),
+    sd(alcohol)
+  )
+```
+
+```{r}
+white_wine |>
+  select(alcohol) |>
+  mutate(m_a=median(alcohol))
+```
+
+```{r}
+white_wine |>
+  select(alcohol) |>
+  mutate(a_m_median =alcohol - median(alcohol),
+         .keep="none")
+```
+
+Inter quartile range -> IQR
+
+```{r}
+white_wine |>
+  select(alcohol) |>
+  mutate(
+    na= (alcohol - mean (alcohol))/sd(alcohol),
+    na_r=(alcohol -median(alcohol))/IQR(alcohol),
+         .keep="none"
+    )
+```
+
+```{r}
+white_wine |>
+  summarise(
+    mean(alcohol),
+    median(alcohol),
+    sd(alcohol)
+  )
 ```
 
