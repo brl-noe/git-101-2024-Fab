@@ -290,3 +290,436 @@ sugar_stats <- white_wine |>
           mean(`residual sugar`))
 ```
 
+### Group by
+
+```{r}
+white_wine |>
+  summarise(median(`residual sugar`),
+            n(), ## add n column to the number of column use to this group
+            .by= quality) |>
+  arrange(quality) ## arrange the data in ordre croissant
+```
+
+Compare high alcohol (ha) content vs low
+
+```{r}
+white_wine |>
+  mutate(ha = alcohol >=13) |> 
+  summarise(median(`residual sugar`),
+            n(), ## add n column to the number of column use to this group
+            .by= ha)
+```
+
+```{r}
+## More sophisticated way
+white_wine |>
+  mutate(alcohol_class=cut(alcohol, breaks=c(7,9,10,12,13,15)), ordered_result=TRUE) |> 
+  summarise(median(`residual sugar`),
+            n(),
+            .by= alcohol_class)
+```
+
+Thanks to it we can make better graph
+```{r}
+library(ggplot2)
+white_wine |>
+  mutate(alcohol_class=cut(alcohol, breaks=c(7,9,10,12,13,15)), 
+         ordered_result=TRUE) |>
+  ggplot(aes(x=alcohol_class))+
+  geom_bar()
+## small class at the end and at the begining, blur the marginal distribution of alcohol, maybe good because small may hide the independency. 
+```
+
+```{r}
+ggplot(white_wine, aes(x=alcohol, y=quality)) +
+  geom_boxplot()
+## Conditional distribution of alcohol class given the quality
+```
+
+(Replace continuous variable to a discrete one -> use class)
+
+```{r}
+white_wine |>
+  mutate(alcohol_class=cut(alcohol, breaks=c(7,9,10,12,13,15)), 
+         ordered_result=TRUE) |>
+  ggplot(aes(x=alcohol_class, fill=quality))+
+  geom_bar(position="fill")
+##conditional distribution of quality given the alcoho class (vérifier chatgpt)
+```
+
+```{r}
+alcohol_quantiles <-
+  white_wine |> 
+  pull(alcohol) |>
+  quantile(probs=seq(0,1,by=0.2))
+alcohol_quantiles
+```
+
+
+```{r}
+## we modified the inital vector alcohol_quantiles
+alcohol_quantiles[1] <- alcohol_quantiles[1]-1
+alcohol_quantiles
+```
+
+```{r}
+white_wine |>
+  mutate(alcohol_class=cut(alcohol, breaks= alcohol_quantiles), 
+         ordered_result=TRUE) |>
+  ggplot(aes(x=alcohol_class))+
+  geom_bar()
+```
+
+```{r}
+white_wine |>
+  mutate(alcohol_class=cut(alcohol, breaks=alcohol_quantiles), 
+         ordered_result=TRUE) |>
+  ggplot(aes(x=alcohol_class, fill=quality))+
+  geom_bar(position="fill")
+## strong correlation between the 2 variables, marginal effect of alcohol class, if we want more resolution use by=0.1 in the quantiles).
+```
+
+great for discrete varibale such as age or salary class. 
+
+#### Functions with .by parameter
+Some dplyr verbs support the `.by`parameter:
+
+- `summarise()`
+- `mutate()`
+- `slice_*()`
+- `filter()`
+- `reframe()`
+
+```{r}
+white_wine |>
+  select (1:2) |> ## First 2 columns
+  slice (1:5) ## first 5 rows
+```
+
+```{r}
+white_wine |>
+  slice (1:5, .by=quality) |> ## First 5 rows
+  select (1:2 | quality) ## First 2 columns (and quality)
+```
+
+```{r}
+white_wine |>
+  slice_sample(n=1, by=quality) |>
+## a random wine per quality
+  select(1:2 | quality)
+```
+
+```{r}
+white_wine |>
+  slice_max(alcohol, by=quality) |>
+  select(alcohol | quality)
+```
+
+```{r}
+white_wine |> mutate(avg_alcohol_quality=mean(alcohol), .by=quality)
+```
+
+#### `group_by`
+
+```{r}
+white_wine
+```
+
+
+```{r}
+white_wine |>
+  group_by(quality)
+```
+
+2 versions
+First one
+```{r}
+white_wine |>
+  group_by(quality) |>
+  summarise(mean(`citric acid`))
+```
+
+2nd version
+```{r}
+white_wine |>
+  summarise(mean(`citric acid`), .by=quality)
+```
+
+```{r}
+diamonds |>
+  group_by(cut) |>
+  summarise (median(price))
+```
+
+```{r}
+diamonds  |>
+  group_by(cut, clarity) ## group other 2 variables so 40 groups (product of 1st variable and the second)
+```
+
+```{r}
+diamonds  |>
+  group_by(cut, clarity) |>
+  summarise(median(price), .groups="drop_last") |> 
+  arrange(cut, clarity)
+## use .group="drop_last" to get rid of the complaint. , summary apply to the 40 groups
+```
+
+```{r}
+diamonds |>
+  summarise(median(price), .by=c(cut,clarity)) |>
+  arrange(cut, clarity)
+## same table as above but not group
+```
+
+```{r}
+diamonds |>
+  summarise(price_mc = median(price, .by=c(cut,clarity)))|>
+  summarise(mean(price_mc), .by=cut) |>
+  arrange(cut)  
+```
+
+```{r}
+diamonds |>
+  group_by(cut,color) |>
+  summarise(N=n(), .groups="drop_last")
+```
+
+
+```{r}
+diamonds |>
+  group_by(cut,color) |>
+  summarise(N=n(), .groups="drop_last") |>
+  summarise(sum(N))
+```
+
+```{r}
+diamonds |>
+  group_by(cut,color) |>
+  summarise(N=n(), .groups="drop_last") |>
+  mutate(prob=N/sum(N)) |>
+  ungroup() ## not mandatory to ungroup
+```
+
+```{r}
+diamonds |>
+  summarise(N=n(), .by=(cut,color)) |>
+  mutate(prob=N/sum(N), .by=cut) |>
+  arrange (cut,color)
+```
+For single summary group by and don't care about the order don't use it else use it.
+
+## Tidying data
+```{r}
+library(tidyr)
+```
+
+### Long to wide table (pivoting)
+```{r}
+color_given_cut <- 
+  diamonds |>
+  group_by(cut,color) |>
+  summarise(N=n(), .groups="drop_last") |>
+  mutate(prob=N/sum(N)) |>
+  ungroup()
+```
+
+```{r}
+color_given_cut <-
+  select(!N) |>
+  pivot_wider(id_cols=cut, 
+              names_from=color, 
+              values_from=c(prob,N)
+## now few columns and each row is an elements
+```
+
+```{r}
+color_given_cut <-
+  select(!prob) |>
+  slice_sample(n=30) |>
+  pivot_wider(names_from=color, 
+              values_from=N)
+```
+
+### Wide to long table (pivoting)
+
+```{r}
+data("world_bank_pop")
+```
+
+```{r}
+world_bank_pop |>
+  filter(indicator == "SP.POP.TOTL") |>
+  select(! indicator) |>
+  pivot_longer(!country) |> ## identify in the data set the variables you need to put here
+  filter(country== "USA")
+```
+
+```{r}
+world_bank_pop |>
+  filter(indicator == "SP.POP.TOTL") |>
+  filter(country %in% c("ESP", "FRA")) |>
+  select(!indicator)
+```
+Simple dataset to work on and make graph with
+
+```{r}
+world_bank_pop |>
+  filter(indicator == "SP.POP.TOTL") |>
+  filter(country %in% c("ESP", "FRA")) |>
+  select(!indicator) |>
+  pivot_longer(!country)
+```
+
+```{r}
+world_bank_pop |>
+  filter(country %in% c("ESP","FRA")) |>
+  pivot_longer (!country & !indicator)
+```
+
+```{r}
+world_bank_pop |>
+  filter(indicator == "SP.POP.TOTL") |>
+  select(!indicator) |>
+  pivot_longer(!country, 
+               names_to="year", 
+               names_transform = as.integer,
+               values_to="total popualtion")
+```
+
+```{r}
+world_bank_pop |>
+  filter(indicator == "SP.POP.TOTL") |>
+  select(!indicator) |>
+  pivot_longer(!country, 
+               names_to="year", 
+               names_transform = as.integer,
+               values_to="total popualtion") |>
+  ggplot(aes(x=year, y= `total population`, group=country)) +
+  geom_line() +
+  theme(legend.position="none")
+```
+
+```{r}
+## Regarder le code de Fab sur Git 
+set.seed()
+world_bank_pop |>
+  filter(indicator == "SP.POP.TOTL") |>
+  select(!indicator) |>
+  slice_sample(n=1à, prop=`2000`)
+  pivot_longer(!country, 
+               names_to="year", 
+               names_transform = as.integer,
+               values_to="total popualtion") |>
+  ggplot(aes(x=year, y= `total population`, group=country)) +
+  geom_line() +
+  theme(legend.position="none")
+```
+
+## Nesting
+```{r}
+class(diamonds)
+```
+
+```{r}
+df_list <- tibble(x=1:3,
+                  y=letters[1:3],
+                  z=list(c(1,2),c("Alice", "Bob", "Charlie"),3)) ## not describing a vector but a list of vector, all vectors are double and number of vector in the list. [3]
+df_list
+```
+
+```{r}
+### with a data frame
+daf_list <- data.frame(x=1:3,
+                  y=letters[1:3],
+                  z=I(list(c(1,2),c("Alice", "Bob", "Charlie"),3)))
+daf_list
+```
+
+### Linear models
+
+```{r}
+#| cache: true
+## lm=linear model,
+diamoonds_price_lm <- lm(price~., data=diamonds) ## price to be model with every other variables, don't use attached and detached function
+```
+
+```{r}
+summary(diamonds_price_lm)
+```
+
+```{r}
+## Residual difference between the estimation and the true value
+plot(diamonds_price_lm)
+```
+
+```{r}
+#| cache: true
+library(tidyr)
+library(dplyr)
+diamonds_price_cut_lm <-
+  diamonds|> 
+  nest(.by=cut) |> ## create subset, nesting over cut
+  mutate(sub_lm=lapply(data, \(x) lm(price~.,data=x))) ## create a new colum apply to each of the element of the list
+```
+
+```{r}
+library(broom)
+diamonds_price_cut_lm <-
+  diamonds_price_cut_lm |> mutate(tlm=lapply(sub_lm, tidy))
+```
+
+```{r}
+diamonds |>
+  nest(.by=cut) |>
+  unnest(data)
+```
+
+Unnest 
+1) select variable we want to keep
+2) We unnest and we get a data frame
+
+```{r}
+diamonds_price_cut_lm |>
+  select(cut, tlm) |>
+  unnest(tlm)
+```
+
+
+```{r}
+diamonds_price_cut_lm |>
+  select(cut, tlm) |>
+  unnest(tlm) |>
+  select (cut, term, estimate) |>
+  pivot_wider(names_from=term, values_from=estimate)
+```
+
+
+To keep only significant rows, filter the by the p value
+Create missing values -> NA
+When use that kind of code put a lot of comment. 
+```{r}
+diamonds_price_cut_lm |>
+  select(cut, tlm) |>
+  unnest(tlm) |>
+  filter(p.value < 0.01) |>
+  select (cut, term, estimate) |>
+  pivot_wider(names_from=term, values_from=estimate)
+```
+
+
+## Multiple tables
+### Primary key
+
+```{r}
+products <-vroom(here("northwind", "northwind", "Products.csv"))
+```
+The `ProductId`  is the *primary key** of the `products` tables
+
+```{r}
+pib_nb <- products |> 
+  select (ProductID) |>
+  filter(!is.na(ProductID) & !is.nan(ProductID)) |>
+  distinct(ProductID) |>
+  nrow()
+```
+Is `ProductID` a valid **primary key**: `r pib_nb==nrow(products)`
