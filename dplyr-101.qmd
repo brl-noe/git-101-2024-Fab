@@ -723,3 +723,36 @@ pib_nb <- products |>
   nrow()
 ```
 Is `ProductID` a valid **primary key**: `r pib_nb==nrow(products)`
+
+### Foreign keys
+
+```{r}
+library(readr)
+categories <-read_csv(here("northwind", "northwind" ,"Categories.csv"),
+                   col_types="icc-")
+## Else we can use data.table::fread in the console
+## We use that code to load data becaus the vroom command doesn't work here.
+```
+
+The `CategoryId`  is the *primary key** of the `categories` tables. The `products` table has a `CategoryID` that is likely to be a **foreign key** referencing the primary key of `categories`.
+
+### Join
+A **join** operation is a way to combine two tables into a single one by selecting a subset of the cartesian product between the two tables. 
+
+The **natural join** select only pairs of tuples that have the same values on columns that have the same names. `inner_join` in dplyr implement by default
+
+```{r}
+p_c <- products |>
+  inner_join(categories)
+```
+
+let's break the CategoryID column in products and try to join nevertheless
+
+```{r}
+broken_p_c <- products |>
+  mutate(CategoryID=CategoryID - 1) |>
+  inner_join(categories)
+```
+
+In this case, as expected , tuples with no match are removed from the result.
+We can verify that `CategoryID`is a foreign key by computing the number of tuples int he result. Here this is: `r nrow(p_c)==nrow(products)`
